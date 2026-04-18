@@ -25,13 +25,14 @@ struct EditorContainerView: View {
                 }
             }
         }
-        .onChange(of: editingMode) {
+        .onChange(of: editingMode) { _, _ in
             // Clear the window's undo manager when switching modes to prevent
-            // stale undo actions from referencing deallocated editor views
+            // stale undo actions from referencing deallocated editor views.
             NSApplication.shared.keyWindow?.undoManager?.removeAllActions()
-            // Clear find highlights on the outgoing driver; new driver re-registers.
-            findBar.driver?.clearSearch()
-            findBar.driver = nil
+            // NOTE: Do NOT clear findBar.driver here — SwiftUI fires this AFTER the new
+            // mode's views have already mounted and registered their drivers, so clearing
+            // here wipes out the new driver. The weak reference handles stale cleanup by
+            // itself, and the new driver's registration naturally overwrites.
         }
         .onChange(of: document.id) {
             // Tab switch — re-search on the new doc.

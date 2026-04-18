@@ -27,7 +27,6 @@ final class CompositeFindDriver: FindDriver {
             }
         }
         group.notify(queue: .main) {
-            // Report the primary's count — it's the authoritative source. If absent, the secondary's.
             completion(primaryCount)
         }
     }
