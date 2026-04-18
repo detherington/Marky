@@ -1,0 +1,9 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+    <channel>
+        <title>Marky</title>
+        <link>https://detherington.github.io/Marky/appcast.xml</link>
+        <description>Updates for Marky, a lightweight macOS markdown editor.</description>
+        <language>en</language>
+    </channel>
+</rss>

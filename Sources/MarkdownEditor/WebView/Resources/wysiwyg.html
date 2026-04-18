@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="editor.css">
+    <script src="markdown-it.min.js"></script>
+    <script src="turndown.min.js"></script>
+    <style>
+        #editor {
+            cursor: text;
+        }
+        #editor:focus {
+            outline: none;
+        }
+        #editor:empty::before {
+            content: "Start typing...";
+            color: var(--fg-secondary);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div id="editor" contenteditable="true" spellcheck="true"></div>
+    <script>
+        const md = window.markdownit({
+            html: true,
+            linkify: true,
+            typographer: true,
+            breaks: false
+        });
+
+        const turndownService = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced',
+            emDelimiter: '*',
+            bulletListMarker: '-',
+            hr: '---'
+        });
+
+        // Improve turndown handling of code blocks
+        turndownService.addRule('fencedCodeBlock', {
+            filter: function (node) {
+                return node.nodeName === 'PRE' && node.querySelector('code');
+            },
+            replacement: function (content, node) {
+                const code = node.querySelector('code');
+                const className = code.getAttribute('class') || '';
+                const lang = className.replace('language-', '');
+                const text = code.textContent;
+                return '\n\n```' + lang + '\n' + text + '\n```\n\n';
+            }
+        });
+
+        // Handle strikethrough
+        turndownService.addRule('strikethrough', {
+            filter: ['del', 's', 'strike'],
+            replacement: function (content) {
+                return '~~' + content + '~~';
+            }
+        });
+
+        // Handle task list checkboxes
+        turndownService.addRule('taskList', {
+            filter: function (node) {
+                return node.nodeName === 'LI' && node.querySelector('input[type="checkbox"]');
+            },
+            replacement: function (content, node) {
+                const checkbox = node.querySelector('input[type="checkbox"]');
+                const checked = checkbox && checkbox.checked ? '[x]' : '[ ]';
+                const text = content.replace(/^\s*\[[ x]\]\s*/, '').trim();
+                return checked + ' ' + text + '\n';
+            }
+        });
+
+        function escapeHTML(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        const editor = document.getElementById('editor');
+        let debounceTimer = null;
+        let isLoadingMarkdown = false;
+
+        function loadMarkdown(src) {
+            isLoadingMarkdown = true;
+            editor.innerHTML = md.render(src || '');
+            isLoadingMarkdown = false;
+        }
+
+        function getMarkdown() {
+            return turndownService.turndown(editor.innerHTML);
+        }
+
+        function insertFormatting(type) {
+            // Ensure focus is on the editor before applying formatting
+            editor.focus();
+
+            switch (type) {
+                case 'bold':
+                    document.execCommand('bold', false, null);
+                    break;
+                case 'italic':
+                    document.execCommand('italic', false, null);
+                    break;
+                case 'strikethrough':
+                    document.execCommand('strikeThrough', false, null);
+                    break;
+                case 'code': {
+                    const sel = window.getSelection();
+                    if (sel.rangeCount > 0) {
+                        const range = sel.getRangeAt(0);
+                        if (range.collapsed) {
+                            // No selection — insert a code element via execCommand so undo works
+                            document.execCommand('insertHTML', false, '<code>\u200B</code>');
+                        } else {
+                            // Wrap selection in <code> using execCommand for undo support
+                            const selectedText = range.toString();
+                            document.execCommand('insertHTML', false, '<code>' + escapeHTML(selectedText) + '</code>');
+                        }
+                    }
+                    break;
+                }
+                case 'h1':
+                case 'h2':
+                case 'h3':
+                case 'h4': {
+                    const level = type.charAt(1);
+                    document.execCommand('formatBlock', false, '<h' + level + '>');
+                    break;
+                }
+                case 'ul':
+                    document.execCommand('insertUnorderedList', false, null);
+                    break;
+                case 'ol':
+                    document.execCommand('insertOrderedList', false, null);
+                    break;
+                case 'blockquote':
+                    document.execCommand('formatBlock', false, '<blockquote>');
+                    break;
+                case 'hr':
+                    document.execCommand('insertHorizontalRule', false, null);
+                    break;
+                case 'link': {
+                    // Fallback if called directly from JS (toolbar uses insertLink instead)
+                    const url = prompt('Enter URL:');
+                    if (url) {
+                        document.execCommand('createLink', false, url);
+                    }
+                    break;
+                }
+                case 'paragraph':
+                    document.execCommand('formatBlock', false, '<p>');
+                    break;
+            }
+            notifyChange();
+        }
+
+        function insertLink(url, text) {
+            editor.focus();
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                if (!range.collapsed) {
+                    document.execCommand('createLink', false, url);
+                } else {
+                    var displayText = escapeHTML(text || url);
+                    var safeURL = escapeHTML(url);
+                    document.execCommand('insertHTML', false, '<a href="' + safeURL + '">' + displayText + '</a>');
+                }
+            }
+            notifyChange();
+        }
+
+        function notifyChange() {
+            if (isLoadingMarkdown) return;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                const markdown = getMarkdown();
+                window.webkit.messageHandlers.editor.postMessage({
+                    type: 'contentChanged',
+                    markdown: markdown
+                });
+            }, 300);
+        }
+
+        editor.addEventListener('input', notifyChange);
+
+        // Keyboard shortcuts — must preventDefault for all to stop macOS/SwiftUI from intercepting
+        document.addEventListener('keydown', function (e) {
+            if (!e.metaKey) return;
+
+            if (e.shiftKey) {
+                switch (e.key) {
+                    case '7':
+                        e.preventDefault();
+                        insertFormatting('ol');
+                        return;
+                    case '8':
+                        e.preventDefault();
+                        insertFormatting('ul');
+                        return;
+                    case '9':
+                        e.preventDefault();
+                        insertFormatting('blockquote');
+                        return;
+                }
+            }
+
+            switch (e.key) {
+                case 'b':
+                    e.preventDefault();
+                    insertFormatting('bold');
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    insertFormatting('italic');
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    window.webkit.messageHandlers.editor.postMessage({
+                        type: 'requestLink'
+                    });
+                    break;
+                case 'e':
+                    e.preventDefault();
+                    insertFormatting('code');
+                    break;
+                case 'd':
+                    e.preventDefault();
+                    insertFormatting('strikethrough');
+                    break;
+                case 'z':
+                    // Intercept undo/redo to keep it within the WebView's own undo stack
+                    // Prevents macOS NSUndoManager from crashing on stale references
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        document.execCommand('redo', false, null);
+                    } else {
+                        document.execCommand('undo', false, null);
+                    }
+                    notifyChange();
+                    break;
+            }
+        }, true); // useCapture=true to intercept before contentEditable
+
+        // Don't auto-focus — avoids a stray blinking cursor on load
+    </script>
+</body>
+</html>

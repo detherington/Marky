@@ -1,0 +1,19 @@
+# Swift build artifacts
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcuserdata/
+
+# Build outputs (DMGs, .app bundles are in GitHub Releases, not the repo)
+build/
+
+# macOS
+.DS_Store
+
+# Xcode / editor
+xcuserdata/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.perspectivev3
+!default.perspectivev3
