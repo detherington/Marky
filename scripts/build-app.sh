@@ -12,11 +12,11 @@ done
 # --- Configuration ---
 APP_NAME="Marky"
 BUNDLE_ID="com.marky.app"
-VERSION="1.0.1"
-SHORT_VERSION="1.0.1"
+VERSION="1.0.2"
+SHORT_VERSION="1.0.2"
 MIN_MACOS="14.0"
 SIGNING_IDENTITY="Developer ID Application: Darrell Etherington (8B29CDK832)"
-NOTARIZE_PROFILE="Marky"
+NOTARIZE_PROFILE="notary"
 
 # Sparkle config
 SPARKLE_FEED_URL="https://detherington.github.io/Marky/appcast.xml"
@@ -182,14 +182,18 @@ if [ -d "$SPARKLE_INNER/XPCServices" ]; then
     echo "    Signed Sparkle XPC services"
 fi
 
-if [ -d "$SPARKLE_INNER/Autoupdate.app" ]; then
+# Autoupdate is a standalone binary (helper process), not an .app
+if [ -f "$SPARKLE_INNER/Autoupdate" ]; then
     codesign --force --options runtime --timestamp \
-        --sign "$SIGNING_IDENTITY" "$SPARKLE_INNER/Autoupdate.app"
+        --sign "$SIGNING_IDENTITY" "$SPARKLE_INNER/Autoupdate"
+    echo "    Signed Sparkle Autoupdate"
 fi
 
-if [ -f "$SPARKLE_INNER/Updater.app/Contents/MacOS/Updater" ]; then
+# Updater.app is a bundle — signing the bundle recursively handles its binary
+if [ -d "$SPARKLE_INNER/Updater.app" ]; then
     codesign --force --options runtime --timestamp \
         --sign "$SIGNING_IDENTITY" "$SPARKLE_INNER/Updater.app"
+    echo "    Signed Sparkle Updater.app"
 fi
 
 # Sign the Sparkle framework itself

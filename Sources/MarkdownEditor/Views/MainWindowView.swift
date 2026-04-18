@@ -18,7 +18,8 @@ struct MainWindowView: View {
                 if let document = workspace.activeDocument {
                     EditorContainerView(
                         document: document,
-                        editingMode: workspace.editingMode
+                        editingMode: workspace.editingMode,
+                        findBar: workspace.findBar
                     )
                 } else {
                     emptyState
@@ -40,6 +41,18 @@ struct MainWindowView: View {
         .onChange(of: workspace.sidebarRootURL) { _, newURL in
             if let url = newURL {
                 fileBrowser.openFolder(url)
+            }
+        }
+        .overlay {
+            if workspace.quickSwitcher.isVisible {
+                QuickSwitcherView(
+                    state: workspace.quickSwitcher,
+                    rootURL: fileBrowser.rootURL,
+                    files: fileBrowser.allFiles
+                ) { url in
+                    workspace.openFile(url)
+                }
+                .transition(.opacity)
             }
         }
     }

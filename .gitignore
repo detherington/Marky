@@ -17,3 +17,6 @@ xcuserdata/
 !default.pbxuser
 *.perspectivev3
 !default.perspectivev3
+
+# Local tool/agent settings
+.claude/

@@ -3,6 +3,12 @@ import AppKit
 
 struct RawEditorView: NSViewRepresentable {
     @Binding var text: String
+    /// Optional find-bar state. When non-nil, this view's coordinator registers itself as
+    /// the driver whenever it appears and re-searches on text changes.
+    var findBar: FindBarState?
+    /// Called once with the coordinator so parent views (like SideBySideView) can wire
+    /// it into a CompositeFindDriver.
+    var onCoordinatorReady: ((FindDriver) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -20,8 +26,9 @@ struct RawEditorView: NSViewRepresentable {
         textView.isAutomaticTextCompletionEnabled = false
         textView.isAutomaticLinkDetectionEnabled = false
         textView.allowsUndo = true
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
+        // We run our own unified find bar; disable Apple's to avoid double UI on Cmd+F.
+        textView.usesFindBar = false
+        textView.isIncrementalSearchingEnabled = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
 
         textView.backgroundColor = .textBackgroundColor
@@ -32,6 +39,12 @@ struct RawEditorView: NSViewRepresentable {
 
         textView.string = text
         context.coordinator.applyHighlighting()
+
+        // Register as the find driver when the view is created.
+        context.coordinator.registerAsFindDriver()
+
+        // Surface coordinator to parent.
+        onCoordinatorReady?(context.coordinator)
 
         return scrollView
     }
@@ -44,17 +57,38 @@ struct RawEditorView: NSViewRepresentable {
             context.coordinator.applyHighlighting()
             textView.selectedRanges = selection
         }
+        // Re-register each update in case the bar state reference changed (tab switch, etc.)
+        context.coordinator.parent = self
+        context.coordinator.registerAsFindDriver()
     }
 
-    class Coordinator: NSObject, NSTextViewDelegate {
+    class Coordinator: NSObject, NSTextViewDelegate, FindDriver {
         var parent: RawEditorView
         var isUpdating = false
         weak var textView: NSTextView?
         private let highlighter = MarkdownHighlighter()
         private let highlightDebouncer = Debouncer(delay: 0.1)
+        private let findDebouncer = Debouncer(delay: 0.2)
+
+        // Find state
+        private var matchRanges: [NSRange] = []
+        private var currentMatchIndex: Int = -1
+        private let matchColor = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.56, alpha: 1.0)
+        private let currentMatchColor = NSColor(calibratedRed: 1.0, green: 0.62, blue: 0.26, alpha: 1.0)
 
         init(_ parent: RawEditorView) {
             self.parent = parent
+        }
+
+        func registerAsFindDriver() {
+            guard let bar = parent.findBar else { return }
+            // Idempotent — setting the driver every updateNSView triggered a body/update loop.
+            if bar.driver !== self {
+                bar.driver = self
+                if bar.isVisible, !bar.query.isEmpty {
+                    bar.refreshSearch()
+                }
+            }
         }
 
         func textDidChange(_ notification: Notification) {
@@ -66,12 +100,126 @@ struct RawEditorView: NSViewRepresentable {
             highlightDebouncer.debounce { [weak self] in
                 self?.applyHighlighting()
             }
+
+            // Re-run find if the bar is visible (text edits invalidate match ranges).
+            if let bar = parent.findBar, bar.isVisible, !bar.query.isEmpty {
+                findDebouncer.debounce { [weak self] in
+                    self?.parent.findBar?.refreshSearch()
+                }
+            }
         }
 
         func applyHighlighting() {
             guard let textView = textView,
                   let textStorage = textView.textStorage else { return }
             highlighter.highlight(textStorage)
+            // Re-apply find highlights on top (the highlighter only resets font/foreground).
+            reapplyFindHighlights()
+        }
+
+        private func reapplyFindHighlights() {
+            guard let textStorage = textView?.textStorage else { return }
+            for (i, range) in matchRanges.enumerated() {
+                let color = i == currentMatchIndex ? currentMatchColor : matchColor
+                textStorage.addAttribute(.backgroundColor, value: color, range: range)
+            }
+        }
+
+        // MARK: - FindDriver
+
+        func applySearch(query: String, caseSensitive: Bool, completion: @escaping (Int) -> Void) {
+            completion(applySearchSync(query: query, caseSensitive: caseSensitive))
+        }
+
+        private func applySearchSync(query: String, caseSensitive: Bool) -> Int {
+            guard let textView = textView, let textStorage = textView.textStorage else { return 0 }
+            // Clear previous
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            textStorage.removeAttribute(.backgroundColor, range: fullRange)
+            matchRanges = []
+            currentMatchIndex = -1
+
+            guard !query.isEmpty else { return 0 }
+
+            let pattern = NSRegularExpression.escapedPattern(for: query)
+            let options: NSRegularExpression.Options = caseSensitive ? [] : [.caseInsensitive]
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return 0 }
+
+            regex.enumerateMatches(in: textView.string, options: [], range: fullRange) { match, _, _ in
+                if let r = match?.range { matchRanges.append(r) }
+            }
+
+            for range in matchRanges {
+                textStorage.addAttribute(.backgroundColor, value: matchColor, range: range)
+            }
+            return matchRanges.count
+        }
+
+        func jumpTo(matchIndex: Int) {
+            guard let textView = textView,
+                  let textStorage = textView.textStorage,
+                  matchIndex >= 0, matchIndex < matchRanges.count else { return }
+
+            // Revert previous current to plain match color
+            if currentMatchIndex >= 0, currentMatchIndex < matchRanges.count {
+                textStorage.addAttribute(.backgroundColor, value: matchColor,
+                                         range: matchRanges[currentMatchIndex])
+            }
+            currentMatchIndex = matchIndex
+            let range = matchRanges[matchIndex]
+            textStorage.addAttribute(.backgroundColor, value: currentMatchColor, range: range)
+            textView.scrollRangeToVisible(range)
+            textView.setSelectedRange(range)
+        }
+
+        func clearSearch() {
+            guard let textView = textView, let textStorage = textView.textStorage else { return }
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            textStorage.removeAttribute(.backgroundColor, range: fullRange)
+            matchRanges = []
+            currentMatchIndex = -1
+        }
+
+        func replaceCurrentMatch(with replacement: String, completion: @escaping (Bool) -> Void) {
+            guard let textView = textView,
+                  currentMatchIndex >= 0, currentMatchIndex < matchRanges.count else {
+                completion(false)
+                return
+            }
+            let range = matchRanges[currentMatchIndex]
+            guard textView.shouldChangeText(in: range, replacementString: replacement) else {
+                completion(false)
+                return
+            }
+            textView.textStorage?.replaceCharacters(in: range, with: replacement)
+            textView.didChangeText()
+            completion(true)
+        }
+
+        func replaceAll(query: String, with replacement: String, caseSensitive: Bool,
+                        completion: @escaping (Int) -> Void) {
+            guard let textView = textView, !query.isEmpty else { completion(0); return }
+            let pattern = NSRegularExpression.escapedPattern(for: query)
+            let options: NSRegularExpression.Options = caseSensitive ? [] : [.caseInsensitive]
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+                completion(0); return
+            }
+
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            let matches = regex.matches(in: textView.string, options: [], range: fullRange)
+            guard !matches.isEmpty else { completion(0); return }
+
+            // Back-to-front so earlier ranges don't shift.
+            textView.undoManager?.beginUndoGrouping()
+            for match in matches.reversed() {
+                let range = match.range
+                if textView.shouldChangeText(in: range, replacementString: replacement) {
+                    textView.textStorage?.replaceCharacters(in: range, with: replacement)
+                    textView.didChangeText()
+                }
+            }
+            textView.undoManager?.endUndoGrouping()
+            completion(matches.count)
         }
     }
 }

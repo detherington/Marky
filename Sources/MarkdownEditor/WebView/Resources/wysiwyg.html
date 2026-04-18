@@ -91,6 +91,129 @@
             return turndownService.turndown(editor.innerHTML);
         }
 
+        // ----- Find & Replace (shared pattern with preview.html) -----
+
+        function findRoot() { return editor; }
+
+        function clearFind() {
+            editor.querySelectorAll('.marky-find-match').forEach(function (span) {
+                const parent = span.parentNode;
+                const text = document.createTextNode(span.textContent);
+                parent.replaceChild(text, span);
+                parent.normalize();
+            });
+        }
+
+        function findAll(query, caseSensitive) {
+            clearFind();
+            if (!query) return 0;
+
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+                acceptNode: function (n) {
+                    const tag = n.parentNode && n.parentNode.tagName;
+                    if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            const textNodes = [];
+            let cur;
+            while ((cur = walker.nextNode())) textNodes.push(cur);
+
+            const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const flags = 'g' + (caseSensitive ? '' : 'i');
+            const re = new RegExp(escaped, flags);
+
+            let count = 0;
+            textNodes.forEach(function (node) {
+                const text = node.nodeValue;
+                if (!text) return;
+                re.lastIndex = 0;
+                let m, last = 0;
+                const frag = document.createDocumentFragment();
+                let matched = false;
+                while ((m = re.exec(text)) !== null) {
+                    matched = true;
+                    if (m.index > last) {
+                        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                    }
+                    const span = document.createElement('span');
+                    span.className = 'marky-find-match';
+                    span.textContent = m[0];
+                    frag.appendChild(span);
+                    last = m.index + m[0].length;
+                    count++;
+                    if (m[0].length === 0) re.lastIndex++;
+                }
+                if (matched) {
+                    if (last < text.length) {
+                        frag.appendChild(document.createTextNode(text.slice(last)));
+                    }
+                    node.parentNode.replaceChild(frag, node);
+                }
+            });
+            return count;
+        }
+
+        function jumpToMatch(index) {
+            editor.querySelectorAll('.marky-find-current').forEach(function (el) {
+                el.classList.remove('marky-find-current');
+            });
+            const matches = editor.querySelectorAll('.marky-find-match');
+            if (index < 0 || index >= matches.length) return;
+            const target = matches[index];
+            target.classList.add('marky-find-current');
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+
+        // Replace the currently highlighted match with `replacement`. Returns true on success.
+        function replaceCurrent(replacement) {
+            const target = editor.querySelector('.marky-find-current');
+            if (!target) return false;
+            // Substitute a plain text node — preserves undo stack via execCommand? No —
+            // direct DOM mutation here. We accept that this replace step isn't part of
+            // the browser undo stack (rare case: user wants to undo a Replace All in WYSIWYG).
+            const parent = target.parentNode;
+            parent.replaceChild(document.createTextNode(replacement), target);
+            parent.normalize();
+            notifyChange();
+            return true;
+        }
+
+        // Replace all matches of `query` with `replacement`. Operates on raw text nodes
+        // so it doesn't depend on prior findAll having run.
+        function replaceAll(query, replacement, caseSensitive) {
+            if (!query) return 0;
+            clearFind();
+
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+                acceptNode: function (n) {
+                    const tag = n.parentNode && n.parentNode.tagName;
+                    if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            const textNodes = [];
+            let cur;
+            while ((cur = walker.nextNode())) textNodes.push(cur);
+
+            const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const flags = 'g' + (caseSensitive ? '' : 'i');
+            const re = new RegExp(escaped, flags);
+
+            let count = 0;
+            textNodes.forEach(function (node) {
+                const text = node.nodeValue;
+                if (!text) return;
+                re.lastIndex = 0;
+                if (!re.test(text)) return;
+                re.lastIndex = 0;
+                const replaced = text.replace(re, function () { count++; return replacement; });
+                node.nodeValue = replaced;
+            });
+            if (count > 0) notifyChange();
+            return count;
+        }
+
         function insertFormatting(type) {
             // Ensure focus is on the editor before applying formatting
             editor.focus();

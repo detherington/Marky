@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; line-height: 1.5; padding: 0 4px; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  h2 { font-size: 14px; margin: 14px 0 4px; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  code { font-family: "SF Mono", Menlo, monospace; background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Marky 1.0.2</h1>
+
+<h2>New: Find &amp; Replace</h2>
+<ul>
+  <li><strong>Cmd+F</strong> opens a unified find bar in all three editing modes.</li>
+  <li><strong>Cmd+Option+F</strong> opens with Replace visible.</li>
+  <li><strong>Cmd+G</strong> / <strong>Cmd+Shift+G</strong> navigate matches.</li>
+  <li>Live match count, case-sensitivity toggle, click-to-toggle replace row.</li>
+  <li>Works seamlessly in Markdown, Split, and Preview modes. In Split, matches highlight on both panes simultaneously.</li>
+  <li>Replace All is a single undo step.</li>
+</ul>
+
+<h2>New: Cmd+P Quick File Switcher</h2>
+<ul>
+  <li><strong>Cmd+P</strong> opens a fuzzy-search palette for any file in the workspace folder.</li>
+  <li>Type a few characters — filename matches are boosted over path matches.</li>
+  <li><strong>↑</strong> / <strong>↓</strong> to navigate, <strong>Enter</strong> to open, <strong>Esc</strong> to close.</li>
+  <li>Click the dim backdrop to dismiss.</li>
+</ul>
+
+<h2>Under the hood</h2>
+<ul>
+  <li>Automatic updates via Sparkle (from 1.0.1) are working — this is the first update delivered through that channel.</li>
+  <li>Fixed a rendering loop that could occur when switching editor modes with the find bar open.</li>
+</ul>
+</body>
+</html>

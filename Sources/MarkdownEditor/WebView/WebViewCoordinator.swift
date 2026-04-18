@@ -15,7 +15,7 @@ class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
-class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, FindDriver {
     let mode: WebViewMode
     var onContentChange: ((String) -> Void)?
     var onLinkRequested: (() -> Void)?
@@ -93,6 +93,52 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler
             if let error = error {
                 print("Insert link error: \(error)")
             }
+        }
+    }
+
+    // MARK: - FindDriver
+
+    /// JSON-encode a single string so it can be interpolated into a JS call as a literal.
+    /// Reuses the same trick as sendMarkdownToJS.
+    private func jsString(_ s: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [s]),
+              let array = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return String(array.dropFirst().dropLast())
+    }
+
+    func applySearch(query: String, caseSensitive: Bool, completion: @escaping (Int) -> Void) {
+        guard let webView = webView, isLoaded else { completion(0); return }
+        let js = "findAll(\(jsString(query)), \(caseSensitive))"
+        webView.evaluateJavaScript(js) { result, _ in
+            completion((result as? Int) ?? 0)
+        }
+    }
+
+    func jumpTo(matchIndex: Int) {
+        guard let webView = webView, isLoaded else { return }
+        webView.evaluateJavaScript("jumpToMatch(\(matchIndex))") { _, _ in }
+    }
+
+    func clearSearch() {
+        guard let webView = webView, isLoaded else { return }
+        webView.evaluateJavaScript("clearFind()") { _, _ in }
+    }
+
+    func replaceCurrentMatch(with replacement: String, completion: @escaping (Bool) -> Void) {
+        // Preview is read-only — fail quietly so users can still search there.
+        guard mode == .wysiwyg, let webView = webView, isLoaded else { completion(false); return }
+        let js = "replaceCurrent(\(jsString(replacement)))"
+        webView.evaluateJavaScript(js) { result, _ in
+            completion((result as? Bool) ?? false)
+        }
+    }
+
+    func replaceAll(query: String, with replacement: String, caseSensitive: Bool,
+                    completion: @escaping (Int) -> Void) {
+        guard mode == .wysiwyg, let webView = webView, isLoaded else { completion(0); return }
+        let js = "replaceAll(\(jsString(query)), \(jsString(replacement)), \(caseSensitive))"
+        webView.evaluateJavaScript(js) { result, _ in
+            completion((result as? Int) ?? 0)
         }
     }
 

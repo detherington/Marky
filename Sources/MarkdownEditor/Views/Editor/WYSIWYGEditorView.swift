@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WYSIWYGEditorView: View {
     @Bindable var document: DocumentViewModel
+    var findBar: FindBarState? = nil
     @State private var displayedContent: String = ""
     @State private var trackedDocumentID: UUID?
     @State private var formattingBridge = FormattingBridge()
@@ -23,6 +24,7 @@ struct WYSIWYGEditorView: View {
                     showingLinkSheet = true
                 },
                 formattingBridge: formattingBridge,
+                findBar: findBar,
                 documentID: document.id
             )
         }

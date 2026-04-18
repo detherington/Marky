@@ -8,6 +8,23 @@ final class FileBrowserViewModel {
 
     private var fileWatcher: FileWatcher?
 
+    /// Flat list of every non-directory file in the tree. Used by the Cmd+P quick switcher.
+    /// Cheap to recompute since `fileTree` is already bounded.
+    var allFiles: [FileNode] {
+        var out: [FileNode] = []
+        func walk(_ nodes: [FileNode]) {
+            for n in nodes {
+                if n.isDirectory {
+                    walk(n.children ?? [])
+                } else {
+                    out.append(n)
+                }
+            }
+        }
+        walk(fileTree)
+        return out
+    }
+
     func openFolder(_ url: URL) {
         rootURL = url
         refresh()

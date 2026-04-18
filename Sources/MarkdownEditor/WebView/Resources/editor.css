@@ -126,3 +126,19 @@ img {
 input[type="checkbox"] {
     margin-right: 6px;
 }
+
+/* Find & Replace highlights */
+.marky-find-match {
+    background: #fff59d;
+    color: inherit;
+    border-radius: 2px;
+}
+.marky-find-current {
+    background: #ff9f43;
+    color: #1d1d1f;
+    border-radius: 2px;
+}
+@media (prefers-color-scheme: dark) {
+    .marky-find-match { background: #b3922b; color: #1d1d1f; }
+    .marky-find-current { background: #ff9f43; color: #1d1d1f; }
+}

@@ -21,6 +21,95 @@
 
         function renderMarkdown(src) {
             document.getElementById('content').innerHTML = md.render(src || '');
+            // Any existing find highlights are gone after re-render; the Swift side
+            // should call findAll again if the find bar is open.
+        }
+
+        // ----- Find & Replace (shared with wysiwyg.html) -----
+        // Wraps every occurrence of the query in a <span class="marky-find-match"> inside
+        // the text nodes under #content (or #editor for wysiwyg). Does not handle matches
+        // that span multiple elements.
+
+        function findRoot() { return document.getElementById('content') || document.getElementById('editor'); }
+
+        function clearFind() {
+            const root = findRoot();
+            if (!root) return;
+            // Unwrap every match span, merge adjacent text nodes back.
+            root.querySelectorAll('.marky-find-match').forEach(function (span) {
+                const parent = span.parentNode;
+                const text = document.createTextNode(span.textContent);
+                parent.replaceChild(text, span);
+                parent.normalize();
+            });
+        }
+
+        function findAll(query, caseSensitive) {
+            clearFind();
+            if (!query) return 0;
+
+            const root = findRoot();
+            if (!root) return 0;
+
+            // Collect all text nodes under root (skipping script/style).
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                acceptNode: function (n) {
+                    const tag = n.parentNode && n.parentNode.tagName;
+                    if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            const textNodes = [];
+            let cur;
+            while ((cur = walker.nextNode())) textNodes.push(cur);
+
+            // Build a case-sensitive or case-insensitive regex; escape regex metachars.
+            const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const flags = 'g' + (caseSensitive ? '' : 'i');
+            const re = new RegExp(escaped, flags);
+
+            let count = 0;
+            textNodes.forEach(function (node) {
+                const text = node.nodeValue;
+                if (!text) return;
+                re.lastIndex = 0;
+                let m, last = 0;
+                const frag = document.createDocumentFragment();
+                let matched = false;
+                while ((m = re.exec(text)) !== null) {
+                    matched = true;
+                    if (m.index > last) {
+                        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                    }
+                    const span = document.createElement('span');
+                    span.className = 'marky-find-match';
+                    span.textContent = m[0];
+                    frag.appendChild(span);
+                    last = m.index + m[0].length;
+                    count++;
+                    if (m[0].length === 0) re.lastIndex++;
+                }
+                if (matched) {
+                    if (last < text.length) {
+                        frag.appendChild(document.createTextNode(text.slice(last)));
+                    }
+                    node.parentNode.replaceChild(frag, node);
+                }
+            });
+            return count;
+        }
+
+        function jumpToMatch(index) {
+            const root = findRoot();
+            if (!root) return;
+            root.querySelectorAll('.marky-find-current').forEach(function (el) {
+                el.classList.remove('marky-find-current');
+            });
+            const matches = root.querySelectorAll('.marky-find-match');
+            if (index < 0 || index >= matches.length) return;
+            const target = matches[index];
+            target.classList.add('marky-find-current');
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
 
         renderMarkdown('');

@@ -33,6 +33,12 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("o", modifiers: [.command, .shift])
 
+            Button("Go to File…") {
+                workspace.quickSwitcher.open()
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(workspace.sidebarRootURL == nil)
+
             Divider()
 
             Button("Save") {
@@ -60,6 +66,33 @@ struct AppCommands: Commands {
 
         // Remove the default text formatting menu (Font > Bold/Italic) that steals Cmd+B/I
         CommandGroup(replacing: .textFormatting) { }
+
+        // Find & Replace — placed in the standard Edit menu area
+        CommandGroup(after: .pasteboard) {
+            Divider()
+
+            Button("Find…") {
+                workspace.findBar.open(replaceMode: false)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+
+            Button("Find and Replace…") {
+                workspace.findBar.open(replaceMode: true)
+            }
+            .keyboardShortcut("f", modifiers: [.command, .option])
+
+            Button("Find Next") {
+                workspace.findBar.jumpNext()
+            }
+            .keyboardShortcut("g", modifiers: .command)
+            .disabled(workspace.findBar.matchCount == 0)
+
+            Button("Find Previous") {
+                workspace.findBar.jumpPrevious()
+            }
+            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .disabled(workspace.findBar.matchCount == 0)
+        }
 
         CommandGroup(after: .textEditing) {
             Divider()

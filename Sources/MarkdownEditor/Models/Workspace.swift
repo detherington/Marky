@@ -16,6 +16,10 @@ final class Workspace {
     var sidebarRootURL: URL?
     var editingMode: EditingMode = .raw
     var isSidebarVisible: Bool = true
+    /// Shared state for Find & Replace — persists across tab switches so the query sticks.
+    let findBar = FindBarState()
+    /// Shared state for the Cmd+P quick file switcher palette.
+    let quickSwitcher = QuickSwitcherState()
 
     var activeTab: Tab? {
         tabs.first { $0.id == activeTabID }

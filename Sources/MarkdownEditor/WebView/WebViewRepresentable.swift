@@ -12,6 +12,10 @@ struct MarkdownWebView: NSViewRepresentable {
     var onContentChange: ((String) -> Void)?
     var onLinkRequested: (() -> Void)?
     var formattingBridge: FormattingBridge?
+    var findBar: FindBarState?
+    /// Called once with the coordinator after it's created. Lets parent views wire up
+    /// additional behavior (e.g. register with a CompositeFindDriver in Side-by-Side mode).
+    var onCoordinatorReady: ((WebViewCoordinator) -> Void)?
     var documentID: UUID?  // Track which document is loaded to detect tab switches
 
     func makeCoordinator() -> WebViewCoordinator {
@@ -34,6 +38,14 @@ struct MarkdownWebView: NSViewRepresentable {
         // Connect the formatting bridge to this coordinator
         formattingBridge?.coordinator = context.coordinator
 
+        // Register as the active find driver for this webview's mode.
+        // (In Side-by-Side, the composite driver handles coordination.)
+        if let findBar = findBar, mode == .wysiwyg {
+            findBar.driver = context.coordinator
+        }
+        // Surface coordinator to parent (used by SideBySideView to capture preview coord).
+        onCoordinatorReady?(context.coordinator)
+
         #if DEBUG
         webView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #endif
@@ -47,6 +59,12 @@ struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.onContentChange = onContentChange
         context.coordinator.onLinkRequested = onLinkRequested
         formattingBridge?.coordinator = context.coordinator
+
+        // Re-register as find driver (tab switch / mode switch may have changed state).
+        // Idempotent — setting every updateNSView call caused a re-render loop.
+        if let findBar = findBar, mode == .wysiwyg, findBar.driver !== context.coordinator {
+            findBar.driver = context.coordinator
+        }
 
         // If the document changed (tab switch), force-load new content
         if let docID = documentID, docID != context.coordinator.currentDocumentID {
