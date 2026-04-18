@@ -5,6 +5,19 @@
         <link>https://detherington.github.io/Marky/appcast.xml</link>
         <description>Updates for Marky, a lightweight macOS markdown editor.</description>
         <item>
+            <title>Version 1.0.3</title>
+            <pubDate>Sat, 18 Apr 2026 19:04:11 +0000</pubDate>
+            <sparkle:version>1.0.3</sparkle:version>
+            <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://detherington.github.io/Marky/release-notes/1.0.3.html</sparkle:releaseNotesLink>
+            <enclosure
+                url="https://github.com/detherington/Marky/releases/download/v1.0.3/Marky.dmg"
+                sparkle:edSignature="unRFXDQL6wD0lU96WlKZBRX25wux3fXrLT3GJfldHZJfqB1/eRh11bA4r/eHwMbI7h2VnFSjkCs1sN1B4uQdAQ=="
+                length="4751125"
+                type="application/octet-stream" />
+        </item>
+        <item>
             <title>Version 1.0.2</title>
             <pubDate>Sat, 18 Apr 2026 18:28:59 +0000</pubDate>
             <sparkle:version>1.0.2</sparkle:version>
