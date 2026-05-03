@@ -80,12 +80,84 @@
         const editor = document.getElementById('editor');
         let debounceTimer = null;
         let isLoadingMarkdown = false;
+        // Per-document caret offset cache so we can restore the cursor when the user
+        // switches back to a tab they were editing in.
+        const caretByDocId = new Map();
+        let currentDocId = null;
 
-        function loadMarkdown(src) {
-            isLoadingMarkdown = true;
-            editor.innerHTML = md.render(src || '');
-            isLoadingMarkdown = false;
+        function getCaretOffset() {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return null;
+            const range = sel.getRangeAt(0);
+            // Only meaningful if the selection is inside the editor.
+            if (!editor.contains(range.endContainer)) return null;
+            const pre = range.cloneRange();
+            pre.selectNodeContents(editor);
+            pre.setEnd(range.endContainer, range.endOffset);
+            return pre.toString().length;
         }
+
+        function setCaretOffset(offset) {
+            if (offset == null) return;
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+            let charCount = 0;
+            let node;
+            while ((node = walker.nextNode())) {
+                const len = node.length;
+                if (offset <= charCount + len) {
+                    const range = document.createRange();
+                    range.setStart(node, offset - charCount);
+                    range.collapse(true);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    return;
+                }
+                charCount += len;
+            }
+            // Offset past the end — place at the end.
+            const range = document.createRange();
+            range.selectNodeContents(editor);
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        function loadMarkdown(src, docId) {
+            isLoadingMarkdown = true;
+            // Cancel any pending debounced notifyChange so it can't fire AFTER this load
+            // and post stale (pre-tab-switch) content to Swift, which would write it into
+            // the newly-selected document and corrupt it.
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+                debounceTimer = null;
+            }
+            // Save the caret of the doc we're leaving so we can restore on return.
+            if (currentDocId && currentDocId !== docId) {
+                const off = getCaretOffset();
+                if (off != null) caretByDocId.set(currentDocId, off);
+            }
+            editor.innerHTML = md.render(src || '');
+            currentDocId = docId || currentDocId;
+            isLoadingMarkdown = false;
+            // Restore caret if we have one for this doc; otherwise leave the editor
+            // unfocused so the cursor doesn't flash at the top-left of fresh content.
+            if (docId && caretByDocId.has(docId)) {
+                editor.focus();
+                setCaretOffset(caretByDocId.get(docId));
+            } else {
+                editor.blur();
+            }
+        }
+
+        // Continuously remember caret position for the current doc as the user moves it,
+        // so restoration is up-to-date when they tab away.
+        document.addEventListener('selectionchange', function () {
+            if (isLoadingMarkdown || !currentDocId) return;
+            const off = getCaretOffset();
+            if (off != null) caretByDocId.set(currentDocId, off);
+        });
 
         function getMarkdown() {
             return turndownService.turndown(editor.innerHTML);

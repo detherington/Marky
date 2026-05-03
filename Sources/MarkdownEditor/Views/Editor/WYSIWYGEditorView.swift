@@ -3,8 +3,6 @@ import SwiftUI
 struct WYSIWYGEditorView: View {
     @Bindable var document: DocumentViewModel
     var findBar: FindBarState? = nil
-    @State private var displayedContent: String = ""
-    @State private var trackedDocumentID: UUID?
     @State private var formattingBridge = FormattingBridge()
     @State private var showingLinkSheet = false
     @State private var linkURL = ""
@@ -13,9 +11,14 @@ struct WYSIWYGEditorView: View {
         VStack(spacing: 0) {
             FormattingToolbar(bridge: formattingBridge)
             Divider()
+            // Pass document.content directly. MarkdownWebView gates re-pushes via
+            // `hasDeliveredInitialContent` so keystroke updates don't reload the editor;
+            // tab switches force a reload via documentID change. Using an intermediate
+            // @State snapshot caused stale content to be loaded on tab switch because
+            // body re-evaluation outraced onChange(of:document.id).
             MarkdownWebView(
                 mode: .wysiwyg,
-                markdown: displayedContent,
+                markdown: document.content,
                 onContentChange: { newMarkdown in
                     document.content = newMarkdown
                 },
@@ -28,20 +31,9 @@ struct WYSIWYGEditorView: View {
                 documentID: document.id
             )
         }
-        .onAppear {
-            loadDocument()
-        }
-        .onChange(of: document.id) {
-            loadDocument()
-        }
         .sheet(isPresented: $showingLinkSheet) {
             linkSheet
         }
-    }
-
-    private func loadDocument() {
-        trackedDocumentID = document.id
-        displayedContent = document.content
     }
 
     private var linkSheet: some View {

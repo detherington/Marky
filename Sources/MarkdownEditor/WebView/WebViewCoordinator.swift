@@ -65,8 +65,16 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler
         // jsonArray is like ["the escaped string"] — strip the outer []
         let jsonString = String(jsonArray.dropFirst().dropLast())
 
-        let functionName = mode == .preview ? "renderMarkdown" : "loadMarkdown"
-        webView.evaluateJavaScript("\(functionName)(\(jsonString))") { _, error in
+        let js: String
+        if mode == .preview {
+            js = "renderMarkdown(\(jsonString))"
+        } else {
+            // Pass current document ID so the JS side can save/restore caret position
+            // per-document across tab switches.
+            let docId = currentDocumentID?.uuidString ?? ""
+            js = "loadMarkdown(\(jsonString), \"\(docId)\")"
+        }
+        webView.evaluateJavaScript(js) { _, error in
             if let error = error {
                 print("JS error: \(error)")
             }

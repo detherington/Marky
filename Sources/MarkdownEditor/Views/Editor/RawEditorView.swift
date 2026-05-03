@@ -51,14 +51,25 @@ struct RawEditorView: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = scrollView.documentView as! NSTextView
+
+        // CRITICAL ORDERING: update `parent` BEFORE touching textView.string.
+        // Setting textView.string fires NSTextDidChangeNotification synchronously,
+        // which calls our textDidChange delegate, which writes textView.string back
+        // through `parent.text`. If `parent` is still the previous tab's RawEditorView
+        // here, that write goes into the WRONG document and corrupts it (silent data
+        // loss — manifests as the previous tab's file saving as empty).
+        context.coordinator.parent = self
+
         if textView.string != text && !context.coordinator.isUpdating {
             let selection = textView.selectedRanges
+            // Tell textDidChange this is a programmatic write so it doesn't echo back.
+            context.coordinator.isUpdating = true
             textView.string = text
             context.coordinator.applyHighlighting()
             textView.selectedRanges = selection
+            context.coordinator.isUpdating = false
         }
-        // Re-register each update in case the bar state reference changed (tab switch, etc.)
-        context.coordinator.parent = self
+
         context.coordinator.registerAsFindDriver()
     }
 
@@ -92,6 +103,10 @@ struct RawEditorView: NSViewRepresentable {
         }
 
         func textDidChange(_ notification: Notification) {
+            // Skip if this notification was caused by our own programmatic update in
+            // updateNSView — otherwise we'd echo the new tab's content back through
+            // the old tab's binding (data loss).
+            guard !isUpdating else { return }
             guard let textView = notification.object as? NSTextView else { return }
             isUpdating = true
             parent.text = textView.string
