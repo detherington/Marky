@@ -12,8 +12,8 @@ done
 # --- Configuration ---
 APP_NAME="Marky"
 BUNDLE_ID="com.marky.app"
-VERSION="1.0.4"
-SHORT_VERSION="1.0.4"
+VERSION="1.0.5"
+SHORT_VERSION="1.0.5"
 MIN_MACOS="14.0"
 SIGNING_IDENTITY="Developer ID Application: Darrell Etherington (8B29CDK832)"
 NOTARIZE_PROFILE="notary"

@@ -3,9 +3,12 @@ import SwiftUI
 struct MainWindowView: View {
     @State var workspace: Workspace
     @State private var fileBrowser = FileBrowserViewModel()
+    /// Sidebar starts collapsed; user can reveal it from the title bar's sidebar toggle
+    /// or by picking Open Folder from the File menu.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 350)
         } detail: {
