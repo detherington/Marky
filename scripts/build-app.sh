@@ -15,7 +15,10 @@ BUNDLE_ID="com.marky.app"
 VERSION="1.0.5"
 SHORT_VERSION="1.0.5"
 MIN_MACOS="14.0"
-SIGNING_IDENTITY="Developer ID Application: Darrell Etherington (8B29CDK832)"
+# Use SHA-1 of the certificate because the same CN exists in both login and System
+# keychains, which makes name-based lookup ambiguous. If this cert is rotated, update
+# the hash via: security find-identity -v -p codesigning
+SIGNING_IDENTITY="E3A0BC2FDF0A82F824BEFB05E57F6762BE667B0D"
 NOTARIZE_PROFILE="notary"
 
 # Sparkle config
