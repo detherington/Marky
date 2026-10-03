@@ -12,8 +12,8 @@ done
 # --- Configuration ---
 APP_NAME="Marky"
 BUNDLE_ID="com.marky.app"
-VERSION="1.0.5"
-SHORT_VERSION="1.0.5"
+VERSION="1.0.6"
+SHORT_VERSION="1.0.6"
 MIN_MACOS="14.0"
 # Use SHA-1 of the certificate because the same CN exists in both login and System
 # keychains, which makes name-based lookup ambiguous. If this cert is rotated, update

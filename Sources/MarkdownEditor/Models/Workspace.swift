@@ -7,6 +7,9 @@ enum EditingMode: String, CaseIterable {
     case wysiwyg = "Preview"
 }
 
+/// UserDefaults key for the default editing mode used when the app launches.
+let defaultEditingModeKey = "defaultEditingMode"
+
 @Observable
 final class Workspace {
     static let shared = Workspace()
@@ -14,12 +17,19 @@ final class Workspace {
     var tabs: [Tab] = []
     var activeTabID: UUID?
     var sidebarRootURL: URL?
-    var editingMode: EditingMode = .raw
+    var editingMode: EditingMode
     var isSidebarVisible: Bool = true
     /// Shared state for Find & Replace — persists across tab switches so the query sticks.
     let findBar = FindBarState()
     /// Shared state for the Cmd+P quick file switcher palette.
     let quickSwitcher = QuickSwitcherState()
+
+    init() {
+        // Load the user's preferred default editing mode (set in Settings), falling
+        // back to Markdown.
+        let saved = UserDefaults.standard.string(forKey: defaultEditingModeKey)
+        self.editingMode = saved.flatMap(EditingMode.init(rawValue:)) ?? .raw
+    }
 
     var activeTab: Tab? {
         tabs.first { $0.id == activeTabID }

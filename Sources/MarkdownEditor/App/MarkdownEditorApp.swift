@@ -23,6 +23,11 @@ struct MarkyApp: App {
             AppCommands(workspace: workspace, updater: appDelegate.updaterController.updater)
         }
         .defaultSize(width: 1100, height: 750)
+
+        // Marky → Settings… (Cmd+,) — SwiftUI wires up the menu item automatically.
+        Settings {
+            SettingsView()
+        }
     }
 }
 
